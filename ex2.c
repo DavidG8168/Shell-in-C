@@ -91,8 +91,50 @@ int main() {
         }
         if (strcmp(commands[0], "cd") == 0) {  // CD command.
             printf("%d\n", (int) getpid());
-            CDCommand(commands[1]);
-            continue;
+            char dir[100]; // In case of spaces in the directory name.
+            memset(dir, 0 ,100);  // Reset the char buffer.
+            char temp1[100]; // In case of spaces in the directory name.
+            memset(temp1, 0 ,100);  // Reset the char buffer.
+            char temp2[100]; // In case of spaces in the directory name.
+            memset(temp2, 0 ,100);  // Reset the char buffer.
+            int k = 1;
+            if (commands[1] != NULL && commands[2] == NULL) {  // Handle a signle word with '\"' characters
+                if (commands[1][0] == '\"' && commands[1][strlen(commands[1]) - 1] == '\"') {
+                    strcat(temp1, commands[1] + 1);  // Copy without the first char.
+                    strncat(temp2, temp1, strlen(temp1) - 1);  // Copy without the last character.
+                    memset(commands[1], 0, strlen(commands[1]));  // Reset the char buffer.
+                    strcat(commands[1], temp2);  // Replace the commnad without quotes.
+                }
+
+            }
+            for(k = 1; k < 99; k++) {  // Create a path from the command arguments.
+                if(commands[k] == NULL) {  // If the end is reached stop.
+                    break;
+                }
+                // Remove the first character.
+                if(commands[k][0] == '\"' ) {  // remove the first " \" " character.
+                    strcat(dir, commands[k] + 1);  // Copy without the first char.
+                    strcat(dir, " ");  // Add a space.
+                    continue;
+                }
+                if(commands[k][strlen(commands[k]) - 1] == '\"') { // Remove the last " \" " character.
+                    strncat(dir, commands[k], strlen(commands[k]) - 1);  // Copy without the last character.
+                    strcat(dir, " ");  // Add a space.
+                    continue;
+                }
+
+                strcat(dir, commands[k]);  // If no " \" " character just copy the argument normally.
+                strcat(dir, " ");  // Add a space.
+            }
+            int l = 0;  // Remove the final space and replace with '\0'.
+            for(l = 0; l < 99; l++) {
+                if(dir[l] == ' ' && dir[l+1] == '\0') {  // If it's the last character and " " space, remove it.
+                    dir[l] = '\0';
+                    break;
+                }
+            }
+            CDCommand(dir);  // Call the CD command function.
+            continue;  // Go to the end iteration of the main while loop.
         }
         if (strcmp(commands[0], "jobs") == 0) {  // JOBS command.
             JobsCommand(job_array, job_array_pid);  // Does not require PID to be printed.
@@ -137,17 +179,36 @@ int main() {
 void CDCommand(char* dir) {
     getcwd(curr, 100);  // Get current directory.
     int updated = 1;  // Will tell us if directory has been updated.
-    if ((dir != NULL && strcmp(dir, "~") == 0) || (dir == NULL)) { // If path is ~ or empty move to HOME directory.
-        if (chdir(getenv("HOME")) == -1) {  // Error handling is done if chdir fails.
+    if ((dir != NULL && strcmp(dir, "~") == 0) || (dir == NULL) || (dir[0] == '\0')) {
+        if (strcmp(dir,"~") == 0) {
+            if (chdir(dir) == -1) { // Try going into a folder called "~".
+                if (chdir(getenv("HOME")) == -1) {  // Error handling is done if chdir fails.
+                    updated = 0;
+                    fprintf(stderr, ERROR_IN_CD);   // Printing the error from stderr.
+                }
+            }
+        }
+            // If path is ~ or empty move to HOME directory.
+        else if (chdir(getenv("HOME")) == -1) {  // Error handling is done if chdir fails.
+            updated = 0;
+            fprintf(stderr, ERROR_IN_CD);   // Printing the error from stderr.
+        }
+    }
+        // Handle the '..' flag, go back up to parent directory.
+    else if (strcmp(dir, "..") == 0) {
+        if (chdir("..") == -1) {  // Error handling is done if chdir fails.
             updated = 0;
             fprintf(stderr, ERROR_IN_CD);   // Printing the error from stderr.
         }
     }
     else if (strcmp(dir, "-") == 0) {  // If path is '-' we go back the previous directory.
-        if (chdir(prev) == -1) {  // Handle chdir error.
-            updated = 0;
-            printf("OLDPWD not set.\n");  // Print old pwd error if fails.
-        };
+        if(chdir(dir) == -1) { // Try going into a folder called "-".
+            if (chdir(prev) == -1) {  // Handle chdir error.
+                updated = 0;
+                printf("OLDPWD not set.\n");  // Print old pwd error if fails.
+                fprintf(stderr, ERROR_IN_CD);   // Printing the error from stderr.
+            };
+        }
     }
     else if (chdir(dir) == -1) {  // If the path is not ~ or empty, we can move into it normally using chdir.
         updated = 0;
